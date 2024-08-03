@@ -1,0 +1,39 @@
+[package]
+name = "balances_prover"
+version = "0.1.0"
+authors = ["Emanuele Valzano <emanuele.valzano@proton.me>"]
+edition = "2021"
+
+[dependencies]
+
+# wasm
+ink = { version = "4", default-features = false }
+scale = { package = "parity-scale-codec", version = "3.6.12", default-features = false, features = ["derive"] }
+scale-info = { version = "2.11.1", default-features = false, features = ["derive"] }
+
+# crypto
+k256 = { version = "0.13.3", default-features = false, features = ["alloc", "ecdsa"]}
+
+# crates.io
+hex-literal = { version = "0.4.1", default-features = false }
+
+
+# phala
+pink-extension = { version = "0.4", default-features = false }
+
+[dev-dependencies]
+pink-extension-runtime = "0.4"
+
+[lib]
+name = "balances_prover"
+path = "src/lib.rs"
+
+[features]
+default = ["std"]
+std = [
+    "ink/std",
+    "scale/std",
+    "scale-info/std",
+    "pink-extension/std",
+]
+ink-as-dependency = []
