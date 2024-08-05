@@ -3,9 +3,10 @@ use scale_info::TypeInfo;
 
 mod access_control;
 mod crypto;
+mod evm;
 
 pub use access_control::{AccessControl, SudoAccount};
-pub use crypto::{ContractKeyPair, ContractSeed};
+pub use crypto::{ContractKeyPair, ContractSeed, };
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub enum Error {

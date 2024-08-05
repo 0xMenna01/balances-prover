@@ -7,12 +7,18 @@ use pink_extension as pink;
 /// The length of the secret seed
 pub const SEED_LENGTH: usize = 32;
 
+/// The length of the signature
+pub const SIGNATURE_LENGTH: usize = 65;
+
 /// The secret seed.
 ///
 /// The raw secret seed, which can be used to create the `ContractKeyPair`.
 type Seed = [u8; SEED_LENGTH];
 
-/// The ink storage to store the contract seed within the version.
+/// The ECDSA signature
+type Signature = [u8; SIGNATURE_LENGTH];
+
+/// The ink storage to store the contract keyring material within the version.
 #[derive(Debug)]
 #[ink::storage_item]
 pub struct ContractSeed {
@@ -37,7 +43,7 @@ impl From<KeyPairVersion> for u32 {
 
 impl KeyPairVersion {
     pub fn new() -> Self {
-        Self(1)
+        Self(0)
     }
 
     pub fn saturating_inc(&mut self) {
@@ -53,9 +59,9 @@ impl KeyPairVersion {
 
 /// The contract `KeyPair`
 pub struct ContractKeyPair {
-    pub public: PublicKey,
-    pub secret: SecretKey,
-    pub version: KeyPairVersion,
+    public: PublicKey,
+    secret: SecretKey,
+    version: KeyPairVersion,
 }
 
 impl From<ContractKeyPair> for ContractSeed {
@@ -96,6 +102,10 @@ impl ContractKeyPair {
         self.secret.to_bytes().into()
     }
 
+    pub fn public(&self) -> PublicKey {
+        self.public
+    }
+
     /// Derives a new version of the `KeyPair`
     pub fn derive_new_version(mut self) -> ContractKeyPair {
         let salt = &mut [0u8; 32];
@@ -118,13 +128,19 @@ impl ContractKeyPair {
         }
     }
 
-    pub fn sign(&self, message: &[u8]) {
+    pub fn sign(&self, message: &[u8]) -> Signature {
         let msg_hash = &mut [0u8; 32];
         Keccak256::hash(message, msg_hash);
-        let a = self
+        let recsig = self
             .secret
             .sign_prehash_recoverable(msg_hash)
             .expect("Signing can't fail when using 32 bytes message hash. qed.");
+
+        let mut sig = [0u8; SIGNATURE_LENGTH];
+        sig[..64].copy_from_slice(&recsig.0.to_bytes());
+        sig[64] = recsig.1.to_byte();
+
+        sig
     }
 }
 
