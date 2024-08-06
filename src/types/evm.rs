@@ -1,10 +1,15 @@
-use ink::env::hash::{CryptoHash, Keccak256};
+use alloc::alloc::Layout;
+use ink::{
+    env::hash::{CryptoHash, Keccak256},
+    storage::traits::StorageLayout,
+};
 use k256::ecdsa::VerifyingKey;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// An EVM address
-#[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, Clone, Copy, TypeInfo)]
+#[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
 pub struct Address([u8; 20]);
 
 impl From<VerifyingKey> for Address {

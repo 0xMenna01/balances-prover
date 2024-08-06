@@ -22,8 +22,8 @@ type Signature = [u8; SIGNATURE_LENGTH];
 #[derive(Debug)]
 #[ink::storage_item]
 pub struct ContractSeed {
-    seed: Seed,
-    version: u32,
+    pub seed: Seed,
+    pub version: u32,
 }
 
 /// The version of the contract `KeyPair`

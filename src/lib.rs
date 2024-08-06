@@ -8,15 +8,18 @@ use pink_extension as pink;
 
 #[pink::contract(env=PinkEnvironment)]
 mod balances_prover {
-    use crate::types::{AccessControl, ContractKeyPair, ContractSeed, Result, SudoAccount};
+
+    use crate::types::{
+        access_control::{AccessControl, SudoAccount},
+        crypto::{ContractKeyPair, ContractSeed},
+        evm::Address,
+        Error, Result,
+    };
 
     use super::pink;
-    use alloc::string::String;
     use hex_literal::hex;
+    use ink::storage::Lazy;
     use pink::PinkEnvironment;
-
-    use scale::{Decode, Encode};
-    use scale_info::TypeInfo;
 
     /// Defines the storage of your contract.
     /// All the fields will be encrypted and stored on-chain.
@@ -24,7 +27,8 @@ mod balances_prover {
     #[ink(storage)]
     pub struct BalancesProver {
         sudo: SudoAccount,
-        seed: ContractSeed,
+        evm_address: Address,
+        seed: Lazy<ContractSeed>,
     }
 
     impl BalancesProver {
@@ -37,22 +41,68 @@ mod balances_prover {
             let state_commitment =
                 hex!("a5a5378cbadf4f19522a1859de4137904cacd0b485cd58d0c7a55cf892bc1874");
 
+            let pair = ContractKeyPair::generate(&state_commitment);
+            let public = pair.public();
+
+            let mut seed = Lazy::new();
+            seed.set(&pair.into());
+
             Self {
                 sudo,
-                seed: ContractKeyPair::generate(&state_commitment).into(),
+                evm_address: public.into(),
+                seed,
             }
         }
 
-        fn ensure_root(&self, who: AccountId) -> Result<()> {
-            AccessControl::from_account(self.sudo).ensure_root(who)
+        fn ensure_root(&self) -> Result<SudoAccount> {
+            let who = self.env().caller();
+            AccessControl::from_account(self.sudo).ensure_root(who)?;
+
+            Ok(who)
         }
 
-        /// A function to handle direct off-chain Query from users.
-        /// Such functions use the immutable reference `&self`
-        /// so WILL NOT change the contract state.
+        fn seed(&self) -> Option<ContractSeed> {
+            self.seed.get()
+        }
+
+        fn set_seed(&mut self, seed: ContractSeed) {
+            self.seed.set(&seed);
+        }
+
+        fn set_address(&mut self, address: Address) {
+            self.evm_address = address;
+        }
+
+        /// Returns the evm address of the contract used to sign messages
         #[ink(message)]
-        pub fn get_balance(&self) -> Result<String> {
-            Ok(String::from("No Balance"))
+        pub fn get_address(&self) -> Address {
+            self.evm_address
+        }
+
+        #[ink(message)]
+        pub fn get_sudo(&self) -> SudoAccount {
+            self.sudo
+        }
+
+        #[ink(message)]
+        pub fn derive_new_key(&mut self) -> Result<()> {
+            self.ensure_root()?;
+
+            let contract_seed = self
+                .seed()
+                .expect("The seed is set during contract initialization");
+
+            // Derive the new contract keypair
+            let pair =
+                ContractKeyPair::from_versioned_seed(&contract_seed.seed, contract_seed.version)
+                    .expect("Seed is 32 bytes")
+                    .derive_new_version();
+            let public = pair.public();
+            // Change the seed and the evm address
+            self.set_seed(pair.into());
+            self.set_address(public.into());
+
+            Ok(())
         }
     }
 
