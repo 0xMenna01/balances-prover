@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use ink::env::hash::{Blake2x256, CryptoHash, Keccak256};
 use k256::ecdsa::{SigningKey as SecretKey, VerifyingKey as PublicKey};
 use pink_extension as pink;
+use sp_core::Hasher;
 
 /// The length of the secret seed
 pub const SEED_LENGTH: usize = 32;

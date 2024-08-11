@@ -1,19 +1,12 @@
-use alloc::{collections::BTreeMap, format, string::String, vec::Vec};
-use codec::{Decode, Encode};
+use super::{Error, Result};
+use alloc::{collections::BTreeMap, format, vec::Vec};
+use scale::{Decode, Encode};
 use sp_core::{Hasher, H256};
 use sp_trie::{LayoutV0, StorageProof, Trie, TrieDBBuilder};
 
-#[derive(Debug)]
-pub enum Error {
-    KeyError(String),
-    DecodingProofError(String),
-}
-
 /// The state commitment represents a commitment to the state machine's state (trie) at a given
-/// height. Optionally holds a commitment to the ISMP request/response trie if supported by the
-/// state machine.
+/// height
 #[derive(Debug, Clone, Copy, Encode, Decode, scale_info::TypeInfo, PartialEq, Hash, Eq)]
-
 pub struct StateCommitment {
     /// Timestamp in seconds
     pub timestamp: u64,
@@ -75,8 +68,8 @@ impl GetResponseProof {
 
     pub fn verify_state_proof<Keccak: Hasher<Out = H256>, Blake2: Hasher<Out = H256>>(
         &self,
-    ) -> Result<BTreeMap<Vec<u8>, Option<Vec<u8>>>, Error> {
-        let state_proof: SubstrateStateProof = codec::Decode::decode(&mut &*self.proof.proof)
+    ) -> Result<BTreeMap<Vec<u8>, Option<Vec<u8>>>> {
+        let state_proof: SubstrateStateProof = Decode::decode(&mut &*self.proof.proof)
             .map_err(|e| Error::DecodingProofError(format!("failed to decode proof: {e:?}")))?;
 
         let data = match state_proof.hasher {
@@ -94,7 +87,7 @@ impl GetResponseProof {
                         })?;
                         Ok((key, value))
                     })
-                    .collect::<Result<BTreeMap<_, _>, _>>()?
+                    .collect::<Result<BTreeMap<_, _>>>()?
             }
             HashAlgorithm::Blake2 => {
                 let db = StorageProof::new(state_proof.storage_proof).into_memory_db::<Blake2>();
@@ -110,7 +103,7 @@ impl GetResponseProof {
                         })?;
                         Ok((key, value))
                     })
-                    .collect::<Result<BTreeMap<_, _>, _>>()?
+                    .collect::<Result<BTreeMap<_, _>>>()?
             }
         };
 
