@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use ink::env::hash::{Blake2x256, CryptoHash, Keccak256};
 use k256::ecdsa::{SigningKey as SecretKey, VerifyingKey as PublicKey};
 use pink_extension as pink;
+use sp_core::Hasher;
 
 /// The length of the secret seed
 pub const SEED_LENGTH: usize = 32;
@@ -108,8 +109,6 @@ impl ContractKeyPair {
 
     /// Derives a new version of the `KeyPair`
     pub fn derive_new_version(mut self) -> ContractKeyPair {
-        let salt = &mut [0u8; 32];
-
         let mut material = Vec::new();
         material.extend_from_slice(&self.seed());
 
@@ -117,9 +116,9 @@ impl ContractKeyPair {
         self.version.saturating_inc();
         material.extend_from_slice(&self.version.to_vec());
         // salt = hash(old_seed + new_version)
-        Blake2x256::hash(&material, salt);
+        let salt = ContractBlakeTwo256::hash(&material);
 
-        let secret = generate_secret_from_salt(salt);
+        let secret = generate_secret_from_salt(salt.as_bytes());
 
         ContractKeyPair {
             public: PublicKey::from(&secret),
@@ -129,11 +128,10 @@ impl ContractKeyPair {
     }
 
     pub fn sign(&self, message: &[u8]) -> Signature {
-        let msg_hash = &mut [0u8; 32];
-        Keccak256::hash(message, msg_hash);
+        let msg_hash = ContractKeccak256::hash(message);
         let recsig = self
             .secret
-            .sign_prehash_recoverable(msg_hash)
+            .sign_prehash_recoverable(msg_hash.as_bytes())
             .expect("Signing can't fail when using 32 bytes message hash. qed.");
 
         let mut sig = [0u8; SIGNATURE_LENGTH];
@@ -151,4 +149,38 @@ fn generate_secret_from_salt(salt: &[u8]) -> SecretKey {
     seed.copy_from_slice(&raw_secret);
 
     SecretKey::from_slice(&seed).expect("Seed is 32 bytes")
+}
+
+/// Custom hash implementations to be compatible with ink! smart contracts
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ContractKeccak256;
+
+impl Hasher for ContractKeccak256 {
+    type Out = sp_core::H256;
+    type StdHasher = hash256_std_hasher::Hash256StdHasher;
+    const LENGTH: usize = 32;
+
+    fn hash(s: &[u8]) -> Self::Out {
+        let mut output = [0_u8; Self::LENGTH];
+        Keccak256::hash(s, &mut output);
+        output.into()
+    }
+}
+
+/// Custom hash implementations to be compatible with ink! smart contracts
+#[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ContractBlakeTwo256;
+
+impl Hasher for ContractBlakeTwo256 {
+    type Out = sp_core::H256;
+    type StdHasher = hash256_std_hasher::Hash256StdHasher;
+    const LENGTH: usize = 32;
+
+    fn hash(s: &[u8]) -> Self::Out {
+        let mut output = [0_u8; Self::LENGTH];
+        Blake2x256::hash(s, &mut output);
+        output.into()
+    }
 }

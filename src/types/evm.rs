@@ -1,11 +1,8 @@
-use alloc::alloc::Layout;
-use ink::{
-    env::hash::{CryptoHash, Keccak256},
-    storage::traits::StorageLayout,
-};
+use super::crypto::ContractKeccak256;
 use k256::ecdsa::VerifyingKey;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
+use sp_core::Hasher;
 
 /// An EVM address
 #[derive(Debug, Encode, Decode, Clone, Copy, TypeInfo)]
@@ -20,10 +17,9 @@ impl From<VerifyingKey> for Address {
         let public = value.to_encoded_point(false);
         let public = &public.as_bytes()[1..];
 
-        let hashed_public = &mut [0u8; 32];
-        Keccak256::hash(public, hashed_public);
+        let hashed_public = ContractKeccak256::hash(public);
 
-        address.copy_from_slice(&hashed_public[12..]);
+        address.copy_from_slice(&hashed_public.as_bytes()[12..]);
 
         Self(address)
     }

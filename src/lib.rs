@@ -54,6 +54,7 @@ mod balances_prover {
             }
         }
 
+        // Ensures the caller account has sudo permissions
         fn ensure_root(&self) -> Result<SudoAccount> {
             let who = self.env().caller();
             AccessControl::from_account(self.sudo).ensure_root(who)?;
@@ -61,29 +62,34 @@ mod balances_prover {
             Ok(who)
         }
 
+        // Obtains the contract secred seed
         fn seed(&self) -> Option<ContractSeed> {
             self.seed.get()
         }
 
+        // Sets the contract seed used for the ECDSA signature
         fn set_seed(&mut self, seed: ContractSeed) {
             self.seed.set(&seed);
         }
 
+        // Sets the EVM address of the contract that is associated to the seed
         fn set_address(&mut self, address: Address) {
             self.evm_address = address;
         }
 
-        /// Returns the evm address of the contract used to sign messages
+        /// The EVM address of the contract used to sign messages
         #[ink(message)]
         pub fn get_address(&self) -> Address {
             self.evm_address
         }
 
+        /// The contract sudo account
         #[ink(message)]
         pub fn get_sudo(&self) -> SudoAccount {
             self.sudo
         }
 
+        /// Derives a new contract seed and changes the associated EVM address
         #[ink(message)]
         pub fn derive_new_key(&mut self) -> Result<()> {
             self.ensure_root()?;
