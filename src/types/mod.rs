@@ -5,6 +5,7 @@ pub mod access_control;
 pub mod balances;
 pub mod crypto;
 pub mod evm;
+pub mod state_proofs;
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub enum Error {

@@ -20,10 +20,9 @@ impl From<VerifyingKey> for Address {
         let public = value.to_encoded_point(false);
         let public = &public.as_bytes()[1..];
 
-        let hashed_public = &mut [0u8; 32];
-        Keccak256::hash(public, hashed_public);
+        let hashed_public = ContractKeccak256::hash(public);
 
-        address.copy_from_slice(&hashed_public[12..]);
+        address.copy_from_slice(&hashed_public.as_bytes()[12..]);
 
         Self(address)
     }
