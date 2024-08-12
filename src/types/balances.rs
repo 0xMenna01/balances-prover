@@ -1,27 +1,36 @@
+use super::crypto::hasher::{ContractBlake2_128Concat, ContractTwox64Concat, StorageHasher};
 use alloc::vec::Vec;
+use scale::Encode;
 
 pub type BalancesStorageKey = Vec<u8>;
 
-#[derive(Default)]
 pub struct BalanceStorageKeyBuilder {
     pub prefix: Vec<u8>,
     pub suffix: Vec<Vec<u8>>,
 }
 
+/// A storage item key within its hashing algorithm
+pub enum StorageItemKey<T> {
+    Blake2_128Concat(T),
+    Twox64Concat(T),
+}
+
 impl BalanceStorageKeyBuilder {
-    pub fn prefix(self, prefix: &[u8]) -> Self {
+    pub fn from_prefix(prefix: &[u8]) -> Self {
         Self {
             prefix: prefix.to_vec(),
             suffix: Vec::new(),
         }
     }
 
-    pub fn add_storage_item(self, item: &[u8]) -> Self {
-        let mut suffix = self.suffix;
-        suffix.push(item.to_vec());
-        Self {
-            prefix: self.prefix,
-            suffix,
+    pub fn push_item_key<T: Encode>(&mut self, key: StorageItemKey<T>) {
+        match key {
+            StorageItemKey::Blake2_128Concat(key) => self
+                .suffix
+                .push(ContractBlake2_128Concat::hash(&key.encode())),
+            StorageItemKey::Twox64Concat(key) => {
+                self.suffix.push(ContractTwox64Concat::hash(&key.encode()))
+            }
         }
     }
 

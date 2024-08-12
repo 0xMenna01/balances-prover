@@ -9,14 +9,15 @@ use pink_extension as pink;
 #[pink::contract(env=PinkEnvironment)]
 mod balances_prover {
 
+    use super::pink;
     use crate::types::{
         access_control::{AccessControl, SudoAccount},
-        crypto::{ContractKeyPair, ContractSeed},
+        crypto::ecdsa::{ContractKeyPair, ContractSeed},
         evm::Address,
+        state_proofs::StateRoot,
         Error, Result,
     };
-
-    use super::pink;
+    use alloc::vec::Vec;
     use hex_literal::hex;
     use ink::storage::Lazy;
     use pink::PinkEnvironment;
@@ -33,8 +34,10 @@ mod balances_prover {
 
     impl BalancesProver {
         /// Constructor to initializes your contract
+        /// `state_root` is the state root of the block of which you want to take the snapshot for balances
+        ///
         #[ink(constructor)]
-        pub fn new() -> Self {
+        pub fn new(state_root: StateRoot, balance_storage_prefix: Vec<u8>) -> Self {
             let sudo = pink::env().caller();
 
             // TODO: input the correct state_commitmenti here or in the constructor

@@ -4,15 +4,7 @@ use scale::{Decode, Encode};
 use sp_core::{Hasher, H256};
 use sp_trie::{LayoutV0, StorageProof, Trie, TrieDBBuilder};
 
-/// The state commitment represents a commitment to the state machine's state (trie) at a given
-/// height
-#[derive(Debug, Clone, Copy, Encode, Decode, scale_info::TypeInfo, PartialEq, Hash, Eq)]
-pub struct StateCommitment {
-    /// Timestamp in seconds
-    pub timestamp: u64,
-    /// Root hash of the global state trie.
-    pub state_root: H256,
-}
+pub type StateRoot = H256;
 
 /// Proof holds the relevant proof data.
 #[derive(Debug, Clone, Encode, Decode, scale_info::TypeInfo, PartialEq, Eq)]
@@ -43,15 +35,15 @@ pub struct SubstrateStateProof {
 }
 
 #[derive(Debug, Clone, Encode, Decode, scale_info::TypeInfo, PartialEq, Eq)]
-pub struct GetResponseProof {
+pub struct StateVerifier {
     keys: Vec<Vec<u8>>,
-    root: StateCommitment,
+    root: StateRoot,
     proof: Proof,
 }
 
-impl GetResponseProof {
-    pub fn new(keys: &[Vec<u8>], root: &StateCommitment, proof: &Proof) -> Self {
-        GetResponseProof {
+impl StateVerifier {
+    pub fn new(keys: &[Vec<u8>], root: &StateRoot, proof: &Proof) -> Self {
+        StateVerifier {
             keys: keys.to_vec(),
             root: root.clone(),
             proof: proof.clone(),
@@ -62,7 +54,7 @@ impl GetResponseProof {
         &self.keys
     }
 
-    pub fn state_root(&self) -> &StateCommitment {
+    pub fn state_root(&self) -> &StateRoot {
         &self.root
     }
 
@@ -75,8 +67,7 @@ impl GetResponseProof {
         let data = match state_proof.hasher {
             HashAlgorithm::Keccak => {
                 let db = StorageProof::new(state_proof.storage_proof).into_memory_db::<Keccak>();
-                let trie =
-                    TrieDBBuilder::<LayoutV0<Keccak>>::new(&db, &self.root.state_root).build();
+                let trie = TrieDBBuilder::<LayoutV0<Keccak>>::new(&db, &self.root).build();
 
                 self.keys
                     .clone()
@@ -91,8 +82,7 @@ impl GetResponseProof {
             }
             HashAlgorithm::Blake2 => {
                 let db = StorageProof::new(state_proof.storage_proof).into_memory_db::<Blake2>();
-                let trie =
-                    TrieDBBuilder::<LayoutV0<Blake2>>::new(&db, &self.root.state_root).build();
+                let trie = TrieDBBuilder::<LayoutV0<Blake2>>::new(&db, &self.root).build();
 
                 self.keys
                     .clone()

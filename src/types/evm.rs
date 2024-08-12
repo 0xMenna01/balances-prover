@@ -1,8 +1,9 @@
-use super::crypto::ContractKeccak256;
 use k256::ecdsa::VerifyingKey;
 use scale::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_core::Hasher;
+
+use super::crypto::hasher::ContractKeccak256;
 
 /// An EVM address
 #[derive(Debug, Encode, Decode, Clone, Copy, TypeInfo)]

@@ -1,9 +1,10 @@
-use super::{Error, Result};
+use crate::types::{Error, Result};
 use alloc::vec::Vec;
-use ink::env::hash::{Blake2x256, CryptoHash, Keccak256};
 use k256::ecdsa::{SigningKey as SecretKey, VerifyingKey as PublicKey};
 use pink_extension as pink;
 use sp_core::Hasher;
+
+use super::hasher::{ContractBlakeTwo256, ContractKeccak256};
 
 /// The length of the secret seed
 pub const SEED_LENGTH: usize = 32;
@@ -149,38 +150,4 @@ fn generate_secret_from_salt(salt: &[u8]) -> SecretKey {
     seed.copy_from_slice(&raw_secret);
 
     SecretKey::from_slice(&seed).expect("Seed is 32 bytes")
-}
-
-/// Custom hash implementations to be compatible with ink! smart contracts
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ContractKeccak256;
-
-impl Hasher for ContractKeccak256 {
-    type Out = sp_core::H256;
-    type StdHasher = hash256_std_hasher::Hash256StdHasher;
-    const LENGTH: usize = 32;
-
-    fn hash(s: &[u8]) -> Self::Out {
-        let mut output = [0_u8; Self::LENGTH];
-        Keccak256::hash(s, &mut output);
-        output.into()
-    }
-}
-
-/// Custom hash implementations to be compatible with ink! smart contracts
-#[derive(PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ContractBlakeTwo256;
-
-impl Hasher for ContractBlakeTwo256 {
-    type Out = sp_core::H256;
-    type StdHasher = hash256_std_hasher::Hash256StdHasher;
-    const LENGTH: usize = 32;
-
-    fn hash(s: &[u8]) -> Self::Out {
-        let mut output = [0_u8; Self::LENGTH];
-        Blake2x256::hash(s, &mut output);
-        output.into()
-    }
 }
