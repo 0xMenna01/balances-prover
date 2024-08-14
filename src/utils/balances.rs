@@ -1,5 +1,5 @@
 use crate::types::{
-    balances::{BalanceProverMessage, BalanceRequest},
+    balances::{BalanceProverMessage, ProverRequest},
     crypto::{
         ecdsa::ContractKeyPair,
         hasher::{ContractBlake2_128Concat, ContractTwox64Concat, StorageHasher},
@@ -30,14 +30,20 @@ impl BalanceStorageKeyBuilder {
         }
     }
 
-    pub fn push_item_key<T: Encode>(&mut self, key: StorageItemKey<T>) {
+    pub fn push_item_key<T: Encode>(self, key: StorageItemKey<T>) -> Self {
+        let mut suffix = self.suffix;
         match key {
-            StorageItemKey::Blake2_128Concat(key) => self
-                .suffix
-                .push(ContractBlake2_128Concat::hash(&key.encode())),
-            StorageItemKey::Twox64Concat(key) => {
-                self.suffix.push(ContractTwox64Concat::hash(&key.encode()))
+            StorageItemKey::Blake2_128Concat(key) => {
+                suffix.push(ContractBlake2_128Concat::hash(&key.encode()))
             }
+            StorageItemKey::Twox64Concat(key) => {
+                suffix.push(ContractTwox64Concat::hash(&key.encode()))
+            }
+        };
+
+        Self {
+            prefix: self.prefix,
+            suffix,
         }
     }
 
@@ -53,27 +59,31 @@ impl BalanceStorageKeyBuilder {
     }
 }
 
-pub struct ProverBalanceMessageBuilder<T>(T);
+#[derive(Default)]
+pub struct EmptyMessage;
 
-impl<T> ProverBalanceMessageBuilder<T> {
-    fn from_request(request: BalanceRequest) -> ProverBalanceMessageBuilder<EncodedMessage> {
-        ProverBalanceMessageBuilder(request.encode())
+#[derive(Default)]
+pub struct BalanceProverMessageBuilder<T>(T);
+
+impl BalanceProverMessageBuilder<EmptyMessage> {
+    pub fn request(self, request: ProverRequest) -> BalanceProverMessageBuilder<EncodedMessage> {
+        BalanceProverMessageBuilder(request.encode())
     }
 }
 
-impl ProverBalanceMessageBuilder<EncodedMessage> {
+impl BalanceProverMessageBuilder<EncodedMessage> {
     pub fn sign_request(
         self,
         pair: &ContractKeyPair,
-    ) -> ProverBalanceMessageBuilder<SignedMessage> {
-        ProverBalanceMessageBuilder(SignedMessage {
+    ) -> BalanceProverMessageBuilder<SignedMessage> {
+        BalanceProverMessageBuilder(SignedMessage {
             signature: pair.sign(&self.0),
             encoded_msg: self.0,
         })
     }
 }
 
-impl ProverBalanceMessageBuilder<SignedMessage> {
+impl BalanceProverMessageBuilder<SignedMessage> {
     pub fn build(self) -> BalanceProverMessage {
         self.0.into()
     }

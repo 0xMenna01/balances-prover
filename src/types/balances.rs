@@ -1,14 +1,8 @@
-use super::{
-    crypto::{
-        ecdsa::ContractKeyPair,
-        hasher::{ContractBlake2_128Concat, ContractTwox64Concat, StorageHasher},
-    },
-    evm::{ABIEncode, Address, EncodedMessage, SignedMessage},
-};
-use crate::types::{Error, Result};
+use super::evm::{Address, EncodedMessage, SignedMessage};
 use alloc::vec;
 use alloc::vec::Vec;
 use ethabi::{encode as abi_encode, Token};
+use ink::primitives::AccountId;
 use scale::{Decode, Encode};
 
 pub type Balance = u128;
@@ -20,15 +14,22 @@ pub struct Asset {
     decimals: u8,
 }
 
-pub struct BalanceRequest {
+pub struct ProverRequest {
+    substrate_account: AccountId,
     evm_address: Address,
     asset: Asset,
     amount: Balance,
 }
 
-impl BalanceRequest {
-    pub fn new(evm_address: Address, asset: Asset, amount: Balance) -> Self {
+impl ProverRequest {
+    pub fn new(
+        substrate_account: AccountId,
+        evm_address: Address,
+        asset: Asset,
+        amount: Balance,
+    ) -> Self {
         Self {
+            substrate_account,
             evm_address,
             asset,
             amount,
@@ -36,9 +37,13 @@ impl BalanceRequest {
     }
 }
 
-impl Encode for BalanceRequest {
+impl Encode for ProverRequest {
     fn encode(&self) -> Vec<u8> {
+        let account: &[u8; 32] = self.substrate_account.as_ref();
+
         let tokens = vec![
+            // substrate account
+            Token::Bytes(account.to_vec()),
             // address
             Token::Address(self.evm_address.into()),
             // asset
@@ -56,6 +61,7 @@ impl Encode for BalanceRequest {
     }
 }
 
+#[derive(Debug, Encode, Decode, Clone, scale_info::TypeInfo)]
 pub struct BalanceProverMessage {
     pub encoded_request: EncodedMessage,
     pub signature: Vec<u8>,

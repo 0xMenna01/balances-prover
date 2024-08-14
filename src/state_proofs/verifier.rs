@@ -1,73 +1,51 @@
-use crate::types::state_proofs::{HashAlgorithm, Proof, StateRoot, SubstrateStateProof};
+use crate::types::crypto::hasher::{ContractBlakeTwo256, ContractKeccak256};
+use crate::types::{HashAlgorithm, SubstrateStateProof};
 
 use crate::types::{Error, Result};
-use alloc::{collections::BTreeMap, format, vec::Vec};
-use scale::Decode;
-use sp_core::{Hasher, H256};
+use alloc::{format, vec::Vec};
+use sp_core::H256;
 use sp_trie::{LayoutV0, StorageProof, Trie, TrieDBBuilder};
 
-pub struct StateVerifier {
-    keys: Vec<Vec<u8>>,
-    root: StateRoot,
-    proof: Proof,
+pub fn verify_state_proof(
+    root: &[u8],
+    key: &[u8],
+    state_proof: SubstrateStateProof,
+) -> Result<Option<Vec<u8>>> {
+    let root = h256_from_slice(root)?;
+
+    let data = match state_proof.hasher {
+        HashAlgorithm::Keccak => {
+            let db =
+                StorageProof::new(state_proof.storage_proof).into_memory_db::<ContractKeccak256>();
+            let trie = TrieDBBuilder::<LayoutV0<ContractKeccak256>>::new(&db, &root).build();
+
+            let value = trie
+                .get(key)
+                .map_err(|e| Error::KeyError(format!("Error reading state proof: {e:?}")))?;
+            value
+        }
+        HashAlgorithm::Blake2 => {
+            let db = StorageProof::new(state_proof.storage_proof)
+                .into_memory_db::<ContractBlakeTwo256>();
+            let trie = TrieDBBuilder::<LayoutV0<ContractBlakeTwo256>>::new(&db, &root).build();
+
+            let value = trie
+                .get(key)
+                .map_err(|e| Error::KeyError(format!("Error reading state proof: {e:?}")))?;
+            value
+        }
+    };
+
+    Ok(data)
 }
 
-impl StateVerifier {
-    pub fn new(keys: &[Vec<u8>], root: &StateRoot, proof: &Proof) -> Self {
-        StateVerifier {
-            keys: keys.to_vec(),
-            root: root.clone(),
-            proof: proof.clone(),
-        }
-    }
-
-    pub fn keys(&self) -> &[Vec<u8>] {
-        &self.keys
-    }
-
-    pub fn state_root(&self) -> &StateRoot {
-        &self.root
-    }
-
-    pub fn verify_state_proof<Keccak: Hasher<Out = H256>, Blake2: Hasher<Out = H256>>(
-        &self,
-    ) -> Result<BTreeMap<Vec<u8>, Option<Vec<u8>>>> {
-        let state_proof: SubstrateStateProof = Decode::decode(&mut &*self.proof.proof)
-            .map_err(|e| Error::DecodingProofError(format!("failed to decode proof: {e:?}")))?;
-
-        let data = match state_proof.hasher {
-            HashAlgorithm::Keccak => {
-                let db = StorageProof::new(state_proof.storage_proof).into_memory_db::<Keccak>();
-                let trie = TrieDBBuilder::<LayoutV0<Keccak>>::new(&db, &self.root).build();
-
-                self.keys
-                    .clone()
-                    .into_iter()
-                    .map(|key| {
-                        let value = trie.get(&key).map_err(|e| {
-                            Error::KeyError(format!("Error reading state proof: {e:?}"))
-                        })?;
-                        Ok((key, value))
-                    })
-                    .collect::<Result<BTreeMap<_, _>>>()?
-            }
-            HashAlgorithm::Blake2 => {
-                let db = StorageProof::new(state_proof.storage_proof).into_memory_db::<Blake2>();
-                let trie = TrieDBBuilder::<LayoutV0<Blake2>>::new(&db, &self.root).build();
-
-                self.keys
-                    .clone()
-                    .into_iter()
-                    .map(|key| {
-                        let value = trie.get(&key).map_err(|e| {
-                            Error::KeyError(format!("Error reading state proof: {e:?}"))
-                        })?;
-                        Ok((key, value))
-                    })
-                    .collect::<Result<BTreeMap<_, _>>>()?
-            }
-        };
-
-        Ok(data)
+fn h256_from_slice(maybe_h256: &[u8]) -> Result<H256> {
+    // Ensure the vector has exactly 32 bytes
+    if maybe_h256.len() == 32 {
+        let mut x = [0u8; 32];
+        x.copy_from_slice(&maybe_h256);
+        Ok(H256::from(x))
+    } else {
+        Err(Error::InvalidHashBytes)
     }
 }

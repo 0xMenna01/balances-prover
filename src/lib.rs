@@ -13,19 +13,20 @@ mod balances_prover {
 
     use super::pink;
     use crate::{
-        state_proofs::rpc::Rpc,
+        state_proofs::{rpc::Rpc, verifier},
         types::{
             access_control::{AccessControl, SudoAccount},
-            balances::Asset,
+            balances::{Asset, BalanceProverMessage, ProverRequest},
             crypto::ecdsa::{ContractKeyPair, ContractSeed},
             evm::Address,
-            state_proofs::SnapshotCommitment,
-            Error, Result,
+            Error, ProverStatus, Result, SnapshotCommitment, SubstrateStateProof,
         },
+        utils::balances::{BalanceProverMessageBuilder, BalanceStorageKeyBuilder, StorageItemKey},
     };
     use alloc::{string::String, vec::Vec};
     use ink::storage::Lazy;
     use pink::PinkEnvironment;
+    use scale::Decode;
 
     /// Defines the storage of your contract.
     /// All the fields will be encrypted and stored on-chain.
@@ -46,6 +47,8 @@ mod balances_prover {
         asset: Asset,
         /// The RPC that handles the read requests of state proofs
         rpc: Rpc,
+        /// The status of the prover contract
+        status: ProverStatus,
     }
 
     impl BalancesProver {
@@ -58,6 +61,7 @@ mod balances_prover {
             storage_key_prefix: Vec<u8>,
             asset: Asset,
             http_endpoint: String,
+            status: ProverStatus,
         ) -> Self {
             let sudo = pink::env().caller();
 
@@ -75,6 +79,7 @@ mod balances_prover {
                 storage_key_prefix,
                 asset,
                 rpc: Rpc::new(http_endpoint),
+                status,
             }
         }
 
@@ -86,9 +91,12 @@ mod balances_prover {
             Ok(who)
         }
 
-        // Obtains the contract secred seed
-        fn seed(&self) -> Option<ContractSeed> {
-            self.seed.get()
+        // Obtains the contract keypair
+        fn pair(&self) -> ContractKeyPair {
+            self.seed
+                .get()
+                .expect("The seed is set during contract initialization")
+                .into()
         }
 
         // Sets the contract seed used for the ECDSA signature
@@ -103,36 +111,113 @@ mod balances_prover {
 
         /// The EVM address of the contract used to sign messages
         #[ink(message)]
-        pub fn get_address(&self) -> Address {
+        pub fn address(&self) -> Address {
             self.evm_address
         }
 
         /// The contract sudo account
         #[ink(message)]
-        pub fn get_sudo(&self) -> SudoAccount {
+        pub fn sudo(&self) -> SudoAccount {
             self.sudo
+        }
+
+        /// The rpc url
+        #[ink(message)]
+        pub fn rpc_url(&self) -> String {
+            self.rpc.url.clone()
         }
 
         /// Derives a new contract seed and changes the associated EVM address
         #[ink(message)]
-        pub fn derive_new_key(&mut self) -> Result<()> {
+        pub fn force_derive_new_key(&mut self) -> Result<()> {
             self.ensure_root()?;
 
-            let contract_seed = self
-                .seed()
-                .expect("The seed is set during contract initialization");
-
             // Derive the new contract keypair
-            let pair =
-                ContractKeyPair::from_versioned_seed(&contract_seed.seed, contract_seed.version)
-                    .expect("Seed is 32 bytes")
-                    .derive_new_version();
+            let pair = self.pair().derive_new_version();
             let public = pair.public();
             // Change the seed and the evm address
             self.set_seed(pair.into());
             self.set_address(public.into());
 
             Ok(())
+        }
+
+        /// Updates the snapshot
+        #[ink(message)]
+        pub fn force_update_snapshot(&mut self, snapshot: SnapshotCommitment) -> Result<()> {
+            self.ensure_root()?;
+
+            self.snapshot = snapshot;
+            Ok(())
+        }
+
+        /// Updates the storage key prefix of the balances storage
+        #[ink(message)]
+        pub fn force_update_storage_key_prefix(&mut self, key_prefix: Vec<u8>) -> Result<()> {
+            self.ensure_root()?;
+
+            self.storage_key_prefix = key_prefix;
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn force_update_asset_info(&mut self, asset_info: Asset) -> Result<()> {
+            self.ensure_root()?;
+
+            self.asset = asset_info;
+            Ok(())
+        }
+
+        /// Updates the rpc url
+        #[ink(message)]
+        pub fn force_update_rpc_url(&mut self, url: String) -> Result<()> {
+            self.ensure_root()?;
+
+            self.rpc = Rpc::new(url);
+            Ok(())
+        }
+
+        /// Updates the prover status
+        #[ink(message)]
+        pub fn force_update_prover_status(&mut self, status: ProverStatus) -> Result<()> {
+            self.ensure_root()?;
+
+            self.status = status;
+            Ok(())
+        }
+
+        /// Proves the balance of the caller account on the chain at the state identified by the stored `snapshot`
+        #[ink(message)]
+        pub fn prove_balance(&self, claim_address: Address) -> Result<BalanceProverMessage> {
+            let who = self.env().caller();
+            // Construct the storage key to retrieve the caller balance amount
+            let storage_key = BalanceStorageKeyBuilder::from_prefix(&self.storage_key_prefix)
+                .push_item_key(StorageItemKey::Blake2_128Concat(who))
+                .build();
+
+            // Retrieve the substrate state proof via RPC
+            let proof = SubstrateStateProof {
+                hasher: self.snapshot.hasher.clone(),
+                storage_proof: self
+                    .rpc
+                    .get_read_proof(&storage_key, &self.snapshot.block_hash)?,
+            };
+
+            // Verify the state proof and read the value
+            let value =
+                verifier::verify_state_proof(&self.snapshot.state_root, &storage_key, proof)?
+                    .ok_or(Error::InvalidBalance)?;
+            let amount: Balance =
+                Decode::decode(&mut &*value).map_err(|_| Error::InvalidBalanceDecoding)?;
+
+            // Return the prover message
+            let request = ProverRequest::new(who, claim_address, self.asset.clone(), amount);
+            let prover_message = BalanceProverMessageBuilder::default()
+                .request(request)
+                .sign_request(&self.pair())
+                .build();
+
+            Ok(prover_message)
         }
     }
 

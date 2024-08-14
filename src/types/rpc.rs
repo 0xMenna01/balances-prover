@@ -1,11 +1,6 @@
 use alloc::vec::Vec;
-use scale::{Decode, Encode};
+use scale::Encode;
 use serde::Deserialize;
-
-pub struct StorageProofParams {
-    pub proof: Vec<Vec<u8>>,
-    pub keys: Vec<Vec<u8>>,
-}
 
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
 pub struct ReadProof<'a> {

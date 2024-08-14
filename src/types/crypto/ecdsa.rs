@@ -1,4 +1,3 @@
-use crate::types::{Error, Result};
 use alloc::vec::Vec;
 use k256::ecdsa::{SigningKey as SecretKey, VerifyingKey as PublicKey};
 use pink_extension as pink;
@@ -26,6 +25,18 @@ pub type Signature = [u8; SIGNATURE_LENGTH];
 pub struct ContractSeed {
     pub seed: Seed,
     pub version: u32,
+}
+
+impl From<ContractSeed> for ContractKeyPair {
+    fn from(seed: ContractSeed) -> Self {
+        let secret = SecretKey::from_slice(&seed.seed).expect("Seed is 32 bytes");
+
+        ContractKeyPair {
+            public: PublicKey::from(&secret),
+            secret,
+            version: seed.version.into(),
+        }
+    }
 }
 
 /// The version of the contract `KeyPair`
@@ -76,17 +87,6 @@ impl From<ContractKeyPair> for ContractSeed {
 }
 
 impl ContractKeyPair {
-    /// Get the contract `KeyPair` from a seed and its version
-    pub fn from_versioned_seed(seed: &[u8], version: u32) -> Result<Self> {
-        let secret = SecretKey::from_slice(&seed).map_err(|_| Error::InvalidSeedLength)?;
-
-        Ok(ContractKeyPair {
-            public: PublicKey::from(&secret),
-            secret,
-            version: version.into(),
-        })
-    }
-
     /// Generates a new contract `KeyPair`.
     ///
     /// Given a salt, it generates a `KeyPair` from a seed that is computed by first deriving a raw secret using the pink extension, that uses a contract inner secret, and then hashing the raw secret and key version number.
