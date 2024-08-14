@@ -18,7 +18,7 @@ pub const SIGNATURE_LENGTH: usize = 65;
 type Seed = [u8; SEED_LENGTH];
 
 /// The ECDSA signature
-type Signature = [u8; SIGNATURE_LENGTH];
+pub type Signature = [u8; SIGNATURE_LENGTH];
 
 /// The ink storage to store the contract keyring material within the version.
 #[derive(Debug)]

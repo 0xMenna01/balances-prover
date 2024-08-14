@@ -23,6 +23,9 @@ hex = { version = "0.4.3", default-features = false }
 serde = { version = "1.0.207", default-features = false, features = ["derive", "alloc"] }
 serde-json-core = { version = "0.4.0" }
 
+# evm
+ethabi = { version = "18.0.0", default-features = false }
+
 
 # phala
 pink-extension = { version = "0.4", default-features = false }
@@ -45,5 +48,6 @@ std = [
     "sp-core/std",
     "hash256-std-hasher/std",
     "serde-json-core/std",
+    "ethabi/std",
 ]
 ink-as-dependency = []

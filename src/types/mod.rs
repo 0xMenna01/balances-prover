@@ -26,6 +26,8 @@ pub enum Error {
     HexStringOutOfBounds,
     /// Error in RPC request
     RpcRequestFailed,
+    /// Balance request message has already been signed by the contract
+    RequestAlreadySigned,
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

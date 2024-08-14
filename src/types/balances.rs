@@ -1,65 +1,71 @@
 use super::{
-    crypto::hasher::{ContractBlake2_128Concat, ContractTwox64Concat, StorageHasher},
-    evm::Address,
+    crypto::{
+        ecdsa::ContractKeyPair,
+        hasher::{ContractBlake2_128Concat, ContractTwox64Concat, StorageHasher},
+    },
+    evm::{ABIEncode, Address, EncodedMessage, SignedMessage},
 };
+use crate::types::{Error, Result};
+use alloc::vec;
 use alloc::vec::Vec;
+use ethabi::{encode as abi_encode, Token};
 use scale::{Decode, Encode};
-
-pub type BalancesStorageKey = Vec<u8>;
 
 pub type Balance = u128;
 
 #[derive(Debug, Encode, Decode, Clone, scale_info::TypeInfo)]
 #[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
-pub struct Token {
-    pub id: u32,
-    pub decimals: u8,
+pub struct Asset {
+    id: u32,
+    decimals: u8,
 }
 
-pub struct BalanceRequestBuilder {
+pub struct BalanceRequest {
     evm_address: Address,
-    token: Token,
+    asset: Asset,
     amount: Balance,
 }
 
-pub struct BalanceStorageKeyBuilder {
-    pub prefix: Vec<u8>,
-    pub suffix: Vec<Vec<u8>>,
-}
-
-/// A storage item key within its hashing algorithm
-pub enum StorageItemKey<T> {
-    Blake2_128Concat(T),
-    Twox64Concat(T),
-}
-
-impl BalanceStorageKeyBuilder {
-    pub fn from_prefix(prefix: &[u8]) -> Self {
+impl BalanceRequest {
+    pub fn new(evm_address: Address, asset: Asset, amount: Balance) -> Self {
         Self {
-            prefix: prefix.to_vec(),
-            suffix: Vec::new(),
+            evm_address,
+            asset,
+            amount,
         }
     }
+}
 
-    pub fn push_item_key<T: Encode>(&mut self, key: StorageItemKey<T>) {
-        match key {
-            StorageItemKey::Blake2_128Concat(key) => self
-                .suffix
-                .push(ContractBlake2_128Concat::hash(&key.encode())),
-            StorageItemKey::Twox64Concat(key) => {
-                self.suffix.push(ContractTwox64Concat::hash(&key.encode()))
-            }
-        }
+impl Encode for BalanceRequest {
+    fn encode(&self) -> Vec<u8> {
+        let tokens = vec![
+            // address
+            Token::Address(self.evm_address.into()),
+            // asset
+            Token::Tuple(vec![
+                // asset id
+                Token::Uint(self.asset.id.into()),
+                // asset decimals
+                Token::Uint(self.asset.decimals.into()),
+            ]),
+            // balance amount
+            Token::Uint(self.amount.into()),
+        ];
+
+        abi_encode(&tokens)
     }
+}
 
-    pub fn build(self) -> BalancesStorageKey {
-        let mut key = Vec::new();
+pub struct BalanceProverMessage {
+    pub encoded_request: EncodedMessage,
+    pub signature: Vec<u8>,
+}
 
-        let suffix = self.suffix.concat();
-
-        key.extend_from_slice(&self.prefix);
-        key.extend_from_slice(&suffix);
-
-        key
+impl From<SignedMessage> for BalanceProverMessage {
+    fn from(signed_msg: SignedMessage) -> Self {
+        Self {
+            encoded_request: signed_msg.encoded_msg,
+            signature: signed_msg.signature.to_vec(),
+        }
     }
 }

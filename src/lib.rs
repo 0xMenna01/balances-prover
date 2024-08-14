@@ -3,6 +3,7 @@ extern crate alloc;
 
 mod state_proofs;
 mod types;
+mod utils;
 
 // pink_extension is short for Phala ink! extension
 use pink_extension as pink;
@@ -15,7 +16,7 @@ mod balances_prover {
         state_proofs::rpc::Rpc,
         types::{
             access_control::{AccessControl, SudoAccount},
-            balances::Token,
+            balances::Asset,
             crypto::ecdsa::{ContractKeyPair, ContractSeed},
             evm::Address,
             state_proofs::SnapshotCommitment,
@@ -41,8 +42,8 @@ mod balances_prover {
         snapshot: SnapshotCommitment,
         /// The balances storage key prefix,
         storage_key_prefix: Vec<u8>,
-        /// The token for which the balance needs to be checked
-        token: Token,
+        /// The asset for which the balance needs to be checked
+        asset: Asset,
         /// The RPC that handles the read requests of state proofs
         rpc: Rpc,
     }
@@ -55,7 +56,7 @@ mod balances_prover {
         pub fn new(
             snapshot: SnapshotCommitment,
             storage_key_prefix: Vec<u8>,
-            token: Token,
+            asset: Asset,
             http_endpoint: String,
         ) -> Self {
             let sudo = pink::env().caller();
@@ -72,7 +73,7 @@ mod balances_prover {
                 seed,
                 snapshot,
                 storage_key_prefix,
-                token,
+                asset,
                 rpc: Rpc::new(http_endpoint),
             }
         }
