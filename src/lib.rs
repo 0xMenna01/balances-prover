@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std, no_main)]
 extern crate alloc;
 
+mod state_proofs;
 mod types;
 
 // pink_extension is short for Phala ink! extension
@@ -10,15 +11,18 @@ use pink_extension as pink;
 mod balances_prover {
 
     use super::pink;
-    use crate::types::{
-        access_control::{AccessControl, SudoAccount},
-        crypto::ecdsa::{ContractKeyPair, ContractSeed},
-        evm::Address,
-        state_proofs::StateRoot,
-        Error, Result,
+    use crate::{
+        state_proofs::rpc::Rpc,
+        types::{
+            access_control::{AccessControl, SudoAccount},
+            balances::Token,
+            crypto::ecdsa::{ContractKeyPair, ContractSeed},
+            evm::Address,
+            state_proofs::SnapshotCommitment,
+            Error, Result,
+        },
     };
-    use alloc::vec::Vec;
-    use hex_literal::hex;
+    use alloc::{string::String, vec::Vec};
     use ink::storage::Lazy;
     use pink::PinkEnvironment;
 
@@ -27,9 +31,20 @@ mod balances_prover {
     /// In this stateless example, we just add a useless field for demo.
     #[ink(storage)]
     pub struct BalancesProver {
+        /// The contract sudo account
         sudo: SudoAccount,
+        /// The EVM address of the contract that proves balances
         evm_address: Address,
+        /// The seed of the contract for the EVM address
         seed: Lazy<ContractSeed>,
+        /// The chain snapshot commitment
+        snapshot: SnapshotCommitment,
+        /// The balances storage key prefix,
+        storage_key_prefix: Vec<u8>,
+        /// The token for which the balance needs to be checked
+        token: Token,
+        /// The RPC that handles the read requests of state proofs
+        rpc: Rpc,
     }
 
     impl BalancesProver {
@@ -37,14 +52,15 @@ mod balances_prover {
         /// `state_root` is the state root of the block of which you want to take the snapshot for balances
         ///
         #[ink(constructor)]
-        pub fn new(state_root: StateRoot, balance_storage_prefix: Vec<u8>) -> Self {
+        pub fn new(
+            snapshot: SnapshotCommitment,
+            storage_key_prefix: Vec<u8>,
+            token: Token,
+            http_endpoint: String,
+        ) -> Self {
             let sudo = pink::env().caller();
 
-            // TODO: input the correct state_commitmenti here or in the constructor
-            let state_commitment =
-                hex!("a5a5378cbadf4f19522a1859de4137904cacd0b485cd58d0c7a55cf892bc1874");
-
-            let pair = ContractKeyPair::generate(&state_commitment);
+            let pair = ContractKeyPair::generate(&snapshot.block_hash);
             let public = pair.public();
 
             let mut seed = Lazy::new();
@@ -54,6 +70,10 @@ mod balances_prover {
                 sudo,
                 evm_address: public.into(),
                 seed,
+                snapshot,
+                storage_key_prefix,
+                token,
+                rpc: Rpc::new(http_endpoint),
             }
         }
 

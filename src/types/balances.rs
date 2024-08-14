@@ -1,8 +1,26 @@
-use super::crypto::hasher::{ContractBlake2_128Concat, ContractTwox64Concat, StorageHasher};
+use super::{
+    crypto::hasher::{ContractBlake2_128Concat, ContractTwox64Concat, StorageHasher},
+    evm::Address,
+};
 use alloc::vec::Vec;
-use scale::Encode;
+use scale::{Decode, Encode};
 
 pub type BalancesStorageKey = Vec<u8>;
+
+pub type Balance = u128;
+
+#[derive(Debug, Encode, Decode, Clone, scale_info::TypeInfo)]
+#[cfg_attr(feature = "std", derive(ink::storage::traits::StorageLayout))]
+pub struct Token {
+    pub id: u32,
+    pub decimals: u8,
+}
+
+pub struct BalanceRequestBuilder {
+    evm_address: Address,
+    token: Token,
+    amount: Balance,
+}
 
 pub struct BalanceStorageKeyBuilder {
     pub prefix: Vec<u8>,

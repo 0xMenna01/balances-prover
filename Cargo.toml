@@ -9,7 +9,7 @@ edition = "2021"
 # wasm
 ink = { version = "4", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.6.12", default-features = false, features = ["derive"] }
-scale-info = { version = "2.11.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2", default-features = false, features = ["derive"] }
 sp-trie = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.2.0", default-features = false, features = ["full_crypto"] }
 
@@ -19,6 +19,9 @@ hash256-std-hasher = { version = "0.11.0", default-features = false }
 
 # crates.io
 hex-literal = { version = "0.4.1", default-features = false }
+hex = { version = "0.4.3", default-features = false }
+serde = { version = "1.0.207", default-features = false, features = ["derive", "alloc"] }
+serde-json-core = { version = "0.4.0" }
 
 
 # phala
@@ -41,5 +44,6 @@ std = [
     "sp-trie/std",
     "sp-core/std",
     "hash256-std-hasher/std",
+    "serde-json-core/std",
 ]
 ink-as-dependency = []
